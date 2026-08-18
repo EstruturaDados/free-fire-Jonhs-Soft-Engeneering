@@ -110,6 +110,15 @@ O usuário:
 
 ## 🏁 Conclusão
 
+## Comparação entre vetor e lista encadeada
+
+O arquivo `FreeFire.c` contém duas mochilas independentes para comparação:
+
+- **Vetor:** armazena até 10 itens em posições contíguas. A remoção desloca os itens seguintes, e a busca binária fica disponível depois do Bubble Sort por nome.
+- **Lista encadeada:** cria nós dinamicamente com `malloc`. A inserção ocorre no início e a remoção ajusta ponteiros, mas a busca permanece sequencial.
+
+No menu principal, escolha a estrutura desejada. Em cada busca, o programa informa quantas comparações foram realizadas. Assim, é possível inserir dados equivalentes nas duas mochilas e observar o comportamento durante uma busca crítica.
+
 Ao completar qualquer nível do **Desafio Código da Ilha – Edição Free Fire**, você terá avançado significativamente na programação em **C**, desenvolvendo habilidades práticas de:
 
 - Manipulação de **estruturas e arrays**
