@@ -1,151 +1,154 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
-#define CAPACIDADE_MOCHILA 10
+#define MAX_COMPONENTES 20
 
 typedef struct {
     char nome[30];
     char tipo[20];
-    int quantidade;
-} Item;
+    int prioridade;
+} Componente;
 
-/* Vetor: memoria contigua e capacidade fixa. */
-typedef struct {
-    Item itens[CAPACIDADE_MOCHILA];
-    int quantidade;
-    int ordenadoPorNome;
-} MochilaVetor;
+/* Estas variaveis permitem informar metricas sem alterar as assinaturas exigidas. */
+static long long comparacoesOrdenacao;
+static int comparacoesBusca;
 
-/* Lista: cada no e alocado dinamicamente e aponta para o proximo. */
-typedef struct No {
-    Item dados;
-    struct No *proximo;
-} No;
-
+/* Remove o restante da linha quando a entrada ultrapassa o tamanho do campo. */
 void limparEntrada(void) {
     int caractere;
     while ((caractere = getchar()) != '\n' && caractere != EOF) {
     }
 }
 
+/* Le uma string com limite de tamanho e remove a quebra de linha. */
 void lerTexto(const char *mensagem, char *texto, size_t tamanho) {
     printf("%s", mensagem);
     if (fgets(texto, (int)tamanho, stdin) == NULL) {
         texto[0] = '\0';
         return;
     }
+    if (strchr(texto, '\n') == NULL) {
+        limparEntrada();
+    }
     texto[strcspn(texto, "\n")] = '\0';
 }
 
-int lerQuantidade(void) {
-    int quantidade;
-    printf("Quantidade: ");
-    if (scanf("%d", &quantidade) != 1 || quantidade < 0) {
-        limparEntrada();
-        return -1;
+/* Le um inteiro dentro do intervalo solicitado usando fgets e strtol. */
+int lerInteiro(const char *mensagem, int minimo, int maximo) {
+    char entrada[64];
+    char *fim;
+    long valor;
+
+    for (;;) {
+        lerTexto(mensagem, entrada, sizeof(entrada));
+        valor = strtol(entrada, &fim, 10);
+        while (*fim == ' ' || *fim == '\t') {
+            fim++;
+        }
+        if (entrada[0] != '\0' && *fim == '\0' && valor >= minimo &&
+            valor <= maximo) {
+            return (int)valor;
+        }
+        printf("Digite um valor entre %d e %d.\n", minimo, maximo);
     }
-    limparEntrada();
-    return quantidade;
 }
 
-Item lerItem(void) {
-    Item item;
-    lerTexto("Nome: ", item.nome, sizeof(item.nome));
-    lerTexto("Tipo (arma, municao, cura ou ferramenta): ", item.tipo,
-             sizeof(item.tipo));
-    item.quantidade = lerQuantidade();
-    return item;
-}
-
-void exibirItem(const Item *item) {
-    printf("Nome: %s | Tipo: %s | Quantidade: %d\n", item->nome,
-           item->tipo, item->quantidade);
-}
-
-void listarItensVetor(const MochilaVetor *mochila) {
+/* Exibe todos os componentes em formato de tabela. */
+void mostrarComponentes(Componente vetor[], int tamanho) {
     int indice;
-    printf("\n===== MOCHILA (VETOR) =====\n");
-    if (mochila->quantidade == 0) {
-        printf("A mochila esta vazia.\n");
+    printf("\n%-4s %-29s %-19s %s\n", "No.", "Nome", "Tipo", "Prioridade");
+    printf("---------------------------------------------------------------\n");
+    if (tamanho == 0) {
+        printf("Nenhum componente cadastrado.\n");
         return;
     }
-    for (indice = 0; indice < mochila->quantidade; indice++) {
-        printf("%d. ", indice + 1);
-        exibirItem(&mochila->itens[indice]);
+    for (indice = 0; indice < tamanho; indice++) {
+        printf("%-4d %-29s %-19s %d\n", indice + 1, vetor[indice].nome,
+               vetor[indice].tipo, vetor[indice].prioridade);
     }
 }
 
-void inserirItemVetor(MochilaVetor *mochila) {
-    Item novoItem;
-    if (mochila->quantidade >= CAPACIDADE_MOCHILA) {
-        printf("Mochila cheia (limite: %d itens).\n", CAPACIDADE_MOCHILA);
-        return;
-    }
-    novoItem = lerItem();
-    if (novoItem.quantidade < 0) {
-        printf("Quantidade invalida. Item nao cadastrado.\n");
-        return;
-    }
-    mochila->itens[mochila->quantidade++] = novoItem;
-    mochila->ordenadoPorNome = 0;
-    printf("Item inserido no vetor.\n");
-}
-
-int removerItemVetor(MochilaVetor *mochila, const char *nome) {
-    int indice;
-    for (indice = 0; indice < mochila->quantidade; indice++) {
-        if (strcmp(mochila->itens[indice].nome, nome) == 0) {
-            for (; indice < mochila->quantidade - 1; indice++) {
-                mochila->itens[indice] = mochila->itens[indice + 1];
+/* Ordena os componentes por prioridade crescente com Selection Sort. */
+void selectionSortPrioridade(Componente vetor[], int tamanho) {
+    int indice, menor, proximo;
+    Componente temporario;
+    comparacoesOrdenacao = 0;
+    for (indice = 0; indice < tamanho - 1; indice++) {
+        menor = indice;
+        for (proximo = indice + 1; proximo < tamanho; proximo++) {
+            comparacoesOrdenacao++;
+            if (vetor[proximo].prioridade < vetor[menor].prioridade) {
+                menor = proximo;
             }
-            mochila->quantidade--;
-            mochila->ordenadoPorNome = 0;
-            return 1;
+        }
+        if (menor != indice) {
+            temporario = vetor[indice];
+            vetor[indice] = vetor[menor];
+            vetor[menor] = temporario;
         }
     }
-    return 0;
 }
 
-void ordenarVetor(MochilaVetor *mochila) {
+/* Ordena os componentes por tipo em ordem alfabetica com Insertion Sort. */
+void insertionSortTipo(Componente vetor[], int tamanho) {
+    int indice, posicao, resultado;
+    Componente chave;
+    comparacoesOrdenacao = 0;
+    for (indice = 1; indice < tamanho; indice++) {
+        chave = vetor[indice];
+        posicao = indice - 1;
+        while (posicao >= 0) {
+            resultado = strcmp(vetor[posicao].tipo, chave.tipo);
+            comparacoesOrdenacao++;
+            if (resultado <= 0) {
+                break;
+            }
+            vetor[posicao + 1] = vetor[posicao];
+            posicao--;
+        }
+        vetor[posicao + 1] = chave;
+    }
+}
+
+/* Ordena os componentes por nome em ordem alfabetica com Bubble Sort. */
+void bubbleSortNome(Componente vetor[], int tamanho) {
     int passou, indice;
-    Item temporario;
-    for (passou = 0; passou < mochila->quantidade - 1; passou++) {
-        for (indice = 0; indice < mochila->quantidade - passou - 1; indice++) {
-            if (strcmp(mochila->itens[indice].nome,
-                       mochila->itens[indice + 1].nome) > 0) {
-                temporario = mochila->itens[indice];
-                mochila->itens[indice] = mochila->itens[indice + 1];
-                mochila->itens[indice + 1] = temporario;
+    Componente temporario;
+    comparacoesOrdenacao = 0;
+    for (passou = 0; passou < tamanho - 1; passou++) {
+        for (indice = 0; indice < tamanho - passou - 1; indice++) {
+            comparacoesOrdenacao++;
+            if (strcmp(vetor[indice].nome, vetor[indice + 1].nome) > 0) {
+                temporario = vetor[indice];
+                vetor[indice] = vetor[indice + 1];
+                vetor[indice + 1] = temporario;
             }
         }
     }
-    mochila->ordenadoPorNome = 1;
-    printf("Vetor ordenado por nome com Bubble Sort.\n");
 }
 
-int buscarSequencialVetor(const MochilaVetor *mochila, const char *nome,
-                          int *comparacoes) {
-    int indice;
-    *comparacoes = 0;
-    for (indice = 0; indice < mochila->quantidade; indice++) {
-        (*comparacoes)++;
-        if (strcmp(mochila->itens[indice].nome, nome) == 0) {
-            return indice;
-        }
-    }
-    return -1;
+/* Mede o tempo de CPU e mostra as comparacoes feitas pelo algoritmo. */
+void medirTempo(void (*algoritmo)(Componente[], int), Componente vetor[],
+                int tamanho) {
+    clock_t inicio = clock();
+    algoritmo(vetor, tamanho);
+    clock_t fim = clock();
+    double segundos = (double)(fim - inicio) / CLOCKS_PER_SEC;
+    printf("Comparacoes: %lld | Tempo: %.6f segundos\n", comparacoesOrdenacao,
+           segundos);
 }
 
-int buscarBinariaVetor(const MochilaVetor *mochila, const char *nome,
-                       int *comparacoes) {
-    int inicio = 0, fim = mochila->quantidade - 1;
-    *comparacoes = 0;
+/* Busca um nome em vetor previamente ordenado por nome. */
+int buscaBinariaPorNome(Componente vetor[], int tamanho, char nome[]) {
+    int inicio = 0;
+    int fim = tamanho - 1;
+    comparacoesBusca = 0;
     while (inicio <= fim) {
         int meio = inicio + (fim - inicio) / 2;
-        int resultado;
-        (*comparacoes)++;
-        resultado = strcmp(mochila->itens[meio].nome, nome);
+        int resultado = strcmp(vetor[meio].nome, nome);
+        comparacoesBusca++;
         if (resultado == 0) {
             return meio;
         }
@@ -158,210 +161,91 @@ int buscarBinariaVetor(const MochilaVetor *mochila, const char *nome,
     return -1;
 }
 
-void listarItensLista(const No *inicio) {
-    int indice = 1;
-    printf("\n===== MOCHILA (LISTA ENCADEADA) =====\n");
-    if (inicio == NULL) {
-        printf("A mochila esta vazia.\n");
+/* Cadastra um componente e invalida a ordenacao anterior. */
+void cadastrarComponente(Componente vetor[], int *tamanho, int *ordenadoPorNome) {
+    if (*tamanho >= MAX_COMPONENTES) {
+        printf("Limite de %d componentes atingido.\n", MAX_COMPONENTES);
         return;
     }
-    while (inicio != NULL) {
-        printf("%d. ", indice++);
-        exibirItem(&inicio->dados);
-        inicio = inicio->proximo;
-    }
+    lerTexto("Nome do componente: ", vetor[*tamanho].nome,
+             sizeof(vetor[*tamanho].nome));
+    lerTexto("Tipo do componente: ", vetor[*tamanho].tipo,
+             sizeof(vetor[*tamanho].tipo));
+    vetor[*tamanho].prioridade = lerInteiro("Prioridade (1 a 10): ", 1, 10);
+    (*tamanho)++;
+    *ordenadoPorNome = 0;
+    printf("Componente cadastrado.\n");
 }
 
-void inserirItemLista(No **inicio) {
-    No *novoNo = malloc(sizeof(No));
-    if (novoNo == NULL) {
-        printf("Falha ao alocar memoria.\n");
-        return;
-    }
-    novoNo->dados = lerItem();
-    if (novoNo->dados.quantidade < 0) {
-        free(novoNo);
-        printf("Quantidade invalida. Item nao cadastrado.\n");
-        return;
-    }
-    novoNo->proximo = *inicio;
-    *inicio = novoNo;
-    printf("Item inserido na lista encadeada.\n");
-}
-
-int removerItemLista(No **inicio, const char *nome) {
-    No *atual = *inicio;
-    No *anterior = NULL;
-    while (atual != NULL) {
-        if (strcmp(atual->dados.nome, nome) == 0) {
-            if (anterior == NULL) {
-                *inicio = atual->proximo;
-            } else {
-                anterior->proximo = atual->proximo;
-            }
-            free(atual);
-            return 1;
-        }
-        anterior = atual;
-        atual = atual->proximo;
-    }
-    return 0;
-}
-
-int buscarSequencialLista(const No *inicio, const char *nome,
-                          int *comparacoes) {
-    *comparacoes = 0;
-    while (inicio != NULL) {
-        (*comparacoes)++;
-        if (strcmp(inicio->dados.nome, nome) == 0) {
-            return 1;
-        }
-        inicio = inicio->proximo;
-    }
-    return 0;
-}
-
-void liberarLista(No **inicio) {
-    No *atual = *inicio;
-    while (atual != NULL) {
-        No *proximo = atual->proximo;
-        free(atual);
-        atual = proximo;
-    }
-    *inicio = NULL;
-}
-
-void operarVetor(MochilaVetor *mochila) {
+/* Executa a montagem final: ordenacao escolhida, exibicao e busca da chave. */
+void executarMontagem(Componente vetor[], int tamanho, int *ordenadoPorNome) {
     int opcao;
-    char nome[30];
+    if (tamanho == 0) {
+        printf("Cadastre componentes antes de montar a torre.\n");
+        return;
+    }
+    printf("\n1. Bubble Sort por nome\n2. Insertion Sort por tipo\n");
+    printf("3. Selection Sort por prioridade\n");
+    opcao = lerInteiro("Estrategia: ", 1, 3);
+    if (opcao == 1) {
+        medirTempo(bubbleSortNome, vetor, tamanho);
+        *ordenadoPorNome = 1;
+    } else if (opcao == 2) {
+        medirTempo(insertionSortTipo, vetor, tamanho);
+        *ordenadoPorNome = 0;
+    } else {
+        medirTempo(selectionSortPrioridade, vetor, tamanho);
+        *ordenadoPorNome = 0;
+    }
+    mostrarComponentes(vetor, tamanho);
+}
+
+/* Menu principal do modulo de componentes da torre de resgate. */
+int main(void) {
+    Componente componentes[MAX_COMPONENTES];
+    int tamanho = 0;
+    int ordenadoPorNome = 0;
+    int opcao;
+
     do {
-        printf("\n===== MENU DO VETOR =====\n");
-        printf("1. Inserir\n2. Remover\n3. Listar\n4. Buscar sequencial\n");
-        printf("5. Ordenar por nome\n6. Buscar binaria\n0. Voltar\nEscolha: ");
-        if (scanf("%d", &opcao) != 1) {
-            limparEntrada();
-            printf("Opcao invalida.\n");
-            continue;
-        }
-        limparEntrada();
+        printf("\n===== TORRE DE RESGATE =====\n");
+        printf("1. Cadastrar componente\n2. Mostrar componentes\n");
+        printf("3. Montar torre com estrategia de ordenacao\n");
+        printf("4. Buscar componente-chave\n0. Sair\n");
+        opcao = lerInteiro("Escolha: ", 0, 4);
         switch (opcao) {
             case 1:
-                inserirItemVetor(mochila);
+                cadastrarComponente(componentes, &tamanho, &ordenadoPorNome);
+                mostrarComponentes(componentes, tamanho);
                 break;
             case 2:
-                lerTexto("Nome a remover: ", nome, sizeof(nome));
-                printf(removerItemVetor(mochila, nome) ? "Item removido.\n"
-                                                        : "Item nao encontrado.\n");
+                mostrarComponentes(componentes, tamanho);
                 break;
             case 3:
-                listarItensVetor(mochila);
+                executarMontagem(componentes, tamanho, &ordenadoPorNome);
                 break;
             case 4: {
-                int comparacoes, indice;
-                lerTexto("Nome a buscar: ", nome, sizeof(nome));
-                indice = buscarSequencialVetor(mochila, nome, &comparacoes);
-                if (indice >= 0) exibirItem(&mochila->itens[indice]);
-                else printf("Item nao encontrado.\n");
-                printf("Comparacoes (busca sequencial): %d\n", comparacoes);
-                break;
-            }
-            case 5:
-                ordenarVetor(mochila);
-                break;
-            case 6: {
-                int comparacoes, indice;
-                if (!mochila->ordenadoPorNome) {
-                    printf("Ordene o vetor por nome antes da busca binaria.\n");
+                char nome[30];
+                int indice;
+                if (!ordenadoPorNome) {
+                    printf("Ordene por nome com Bubble Sort antes da busca binaria.\n");
                     break;
                 }
-                lerTexto("Nome a buscar: ", nome, sizeof(nome));
-                indice = buscarBinariaVetor(mochila, nome, &comparacoes);
-                if (indice >= 0) exibirItem(&mochila->itens[indice]);
-                else printf("Item nao encontrado.\n");
-                printf("Comparacoes (busca binaria): %d\n", comparacoes);
+                lerTexto("Nome do componente-chave: ", nome, sizeof(nome));
+                indice = buscaBinariaPorNome(componentes, tamanho, nome);
+                printf("Comparacoes na busca binaria: %d\n", comparacoesBusca);
+                if (indice >= 0) {
+                    printf("Componente-chave confirmado para ativar a torre:\n");
+                    mostrarComponentes(&componentes[indice], 1);
+                } else {
+                    printf("Componente-chave nao encontrado.\n");
+                }
                 break;
             }
             case 0:
+                printf("Montagem encerrada.\n");
                 break;
-            default:
-                printf("Opcao invalida.\n");
         }
     } while (opcao != 0);
-}
-
-void operarLista(No **inicio) {
-    int opcao;
-    char nome[30];
-    do {
-        printf("\n===== MENU DA LISTA ENCADEADA =====\n");
-        printf("1. Inserir\n2. Remover\n3. Listar\n4. Buscar sequencial\n0. Voltar\nEscolha: ");
-        if (scanf("%d", &opcao) != 1) {
-            limparEntrada();
-            printf("Opcao invalida.\n");
-            continue;
-        }
-        limparEntrada();
-        switch (opcao) {
-            case 1:
-                inserirItemLista(inicio);
-                break;
-            case 2:
-                lerTexto("Nome a remover: ", nome, sizeof(nome));
-                printf(removerItemLista(inicio, nome) ? "Item removido.\n"
-                                                       : "Item nao encontrado.\n");
-                break;
-            case 3:
-                listarItensLista(*inicio);
-                break;
-            case 4: {
-                int comparacoes;
-                int encontrado;
-                lerTexto("Nome a buscar: ", nome, sizeof(nome));
-                encontrado = buscarSequencialLista(*inicio, nome, &comparacoes);
-                printf(encontrado ? "Item encontrado.\n" : "Item nao encontrado.\n");
-                printf("Comparacoes (busca sequencial): %d\n", comparacoes);
-                break;
-            }
-            case 0:
-                break;
-            default:
-                printf("Opcao invalida.\n");
-        }
-    } while (opcao != 0);
-}
-
-int main(void) {
-    MochilaVetor mochilaVetor = {0};
-    No *inicioLista = NULL;
-    int opcao;
-    do {
-        printf("\n===== SISTEMA DE MOCHILAS =====\n");
-        printf("1. Usar vetor\n2. Usar lista encadeada\n3. Comparar estruturas\n0. Sair\nEscolha: ");
-        if (scanf("%d", &opcao) != 1) {
-            limparEntrada();
-            printf("Opcao invalida.\n");
-            continue;
-        }
-        limparEntrada();
-        switch (opcao) {
-            case 1:
-                operarVetor(&mochilaVetor);
-                break;
-            case 2:
-                operarLista(&inicioLista);
-                break;
-            case 3:
-                printf("Vetor: insercao no fim O(1), remocao pode deslocar itens e busca binaria apos ordenacao.\n");
-                printf("Lista: insercao no inicio O(1), remocao e busca sao sequenciais.\n");
-                printf("Use os contadores exibidos para comparar as buscas na pratica.\n");
-                break;
-            case 0:
-                break;
-            default:
-                printf("Opcao invalida.\n");
-        }
-    } while (opcao != 0);
-    liberarLista(&inicioLista);
-    printf("Sistema encerrado.\n");
     return 0;
 }
